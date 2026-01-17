@@ -11,4 +11,3 @@ allure-report/
 chromedriver.log
 geckodriver.log
 *.png
-*.jpg
