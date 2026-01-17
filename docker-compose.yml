@@ -1,0 +1,9 @@
+version: '3.8'
+
+services:
+  tests:
+    build: .
+    container_name: saucedemo-tests
+    restart: "no"
+    stdin_open: false
+    tty: false
