@@ -84,11 +84,14 @@ pip install --upgrade webdriver-manager
 
 ### 1. Локальный запуск
 ```bash
-# Запуск всех тестов
+# Локальный запуск
 pytest tests/ -v
 
-# Запуск конкретного теста
-pytest tests/test_login.py::TestLogin::test_successful_login -v
+# Запуск только smoke тестов
+pytest tests/ -m smoke -v
+
+# Запуск performance тестов
+pytest tests/ -m performance -v
 ```
 
 ### 2. Запуск с генерацией Allure отчетов

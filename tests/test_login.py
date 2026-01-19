@@ -1,96 +1,90 @@
-# tests/test_login.py
 import allure
 import pytest
 import time
+from data.test_data import TestUsers, ErrorMessages
 
 @allure.feature("Login Tests")
 class TestLogin:
     
-    @allure.title("Test 1: Successful login with standard user")
-    def test_successful_login(self, login_page):
-        """Успешный логин"""
-        print("\n" + "="*50)
-        print("ТЕСТ 1: Успешный логин")
-        print("="*50)
+    @allure.title("Successful login with standard user")
+    @allure.severity(allure.severity_level.CRITICAL)
+    @pytest.mark.parametrize("user_data", [
+        TestUsers.STANDARD,
+        TestUsers.PERFORMANCE
+    ], ids=["standard_user", "performance_glitch_user"])
+    def test_successful_logins(self, login_page, user_data):
+        """Успешный логин для различных пользователей"""
+        with allure.step("Open login page"):
+            login_page.open()
         
-        login_page.open()
-        login_page.login("standard_user", "secret_sauce")
+        with allure.step(f"Login with {user_data['username']}"):
+            login_page.login(user_data["username"], user_data["password"])
         
-        # Ждем инвентарь
-        assert login_page.wait_for_inventory(timeout=15)
-        assert "inventory" in login_page.get_current_url()
-        print("✓ Тест 1 пройден")
+        with allure.step("Verify inventory page loaded"):
+            assert login_page.is_inventory_page_loaded(), "Inventory page should be loaded"
+            assert "inventory" in login_page.get_current_url(), "URL should contain 'inventory'"
     
-    @allure.title("Test 2: Login with invalid password")
-    def test_invalid_password(self, login_page):
-        """Логин с неверным паролем"""
-        print("\n" + "="*50)
-        print("ТЕСТ 2: Неверный пароль")
-        print("="*50)
-        
-        login_page.open()
-        login_page.login("standard_user", "wrong_password")
-        
-        # Ждем сообщение об ошибке
-        time.sleep(2)
-        error = login_page.get_error_message()
-        assert error is not None
-        assert "do not match" in error
-        print("✓ Тест 2 пройден")
-    
-    @allure.title("Test 3: Login with locked out user")
+    @allure.title("Login with locked out user")
+    @allure.severity(allure.severity_level.NORMAL)
     def test_locked_out_user(self, login_page):
         """Логин заблокированного пользователя"""
-        print("\n" + "="*50)
-        print("ТЕСТ 3: Заблокированный пользователь")
-        print("="*50)
-        
         login_page.open()
-        login_page.login("locked_out_user", "secret_sauce")
+        login_page.login(TestUsers.LOCKED["username"], TestUsers.LOCKED["password"])
         
-        # Ждем сообщение об ошибке
-        time.sleep(2)
-        error = login_page.get_error_message()
-        assert error is not None
-        assert "locked out" in error.lower()
-        print("✓ Тест 3 пройден")
+        error_message = login_page.get_error_message()
+        assert error_message is not None, "Error message should be displayed"
+        assert "locked out" in error_message.lower(), "Error should contain 'locked out'"
     
-    @allure.title("Test 4: Login with empty fields")
-    def test_empty_fields(self, login_page):
-        """Логин с пустыми полями"""
-        print("\n" + "="*50)
-        print("ТЕСТ 4: Пустые поля")
-        print("="*50)
+    @allure.title("Login with invalid credentials")
+    @allure.severity(allure.severity_level.NORMAL)
+    @pytest.mark.parametrize("credentials, expected_error", [
+        (("standard_user", "wrong_password"), "do not match"),
+        (("", "secret_sauce"), "username is required"),
+        (("standard_user", ""), "password is required"),
+        (("", ""), "username is required")
+    ], ids=["wrong_password", "empty_username", "empty_password", "empty_both"])
+    def test_invalid_credentials(self, login_page, credentials, expected_error):
+        """Логин с невалидными данными"""
+        username, password = credentials
         
         login_page.open()
+        
+        if username:
+            login_page.enter_username(username)
+        if password:
+            login_page.enter_password(password)
+        
         login_page.click_login()
         
-        # Ждем сообщение об ошибке
-        time.sleep(2)
-        error = login_page.get_error_message()
-        assert error is not None
-        assert "required" in error.lower()
-        print("✓ Тест 4 пройден")
+        error_message = login_page.get_error_message()
+        assert error_message is not None, "Error message should be displayed"
+        assert expected_error in error_message.lower(), f"Error should contain '{expected_error}'"
     
-    @allure.title("Test 5: Login with performance glitch user")
-    def test_performance_glitch_user(self, login_page):
-        """Логин пользователем performance_glitch_user"""
-        print("\n" + "="*50)
-        print("ТЕСТ 5: Performance glitch user")
-        print("="*50)
-        
+    @allure.title("Performance test for glitch user")
+    @allure.severity(allure.severity_level.MINOR)
+    @pytest.mark.performance
+    def test_performance_glitch_timing(self, login_page):
+        """Проверка времени входа для performance_glitch_user"""
         login_page.open()
         
         start_time = time.time()
-        login_page.login("performance_glitch_user", "secret_sauce")
+        login_page.login(TestUsers.PERFORMANCE["username"], TestUsers.PERFORMANCE["password"])
         
-        # Ждем дольше для этого пользователя
-        inventory_loaded = login_page.wait_for_inventory(timeout=40)
+        # Ждем загрузку с таймаутом
+        timeout = 40
+        while time.time() - start_time < timeout:
+            if login_page.is_inventory_page_loaded():
+                break
+            time.sleep(1)
+        
         end_time = time.time()
-        
         login_time = end_time - start_time
-        print(f"Время входа: {login_time:.2f} секунд")
         
-        assert inventory_loaded, "Инвентарь не загрузился"
-        assert "inventory" in login_page.get_current_url()
-        print("✓ Тест 5 пройден")
+        allure.attach(
+            f"Login time: {login_time:.2f} seconds",
+            name="Performance metrics",
+            attachment_type=allure.attachment_type.TEXT
+        )
+        
+        assert login_page.is_inventory_page_loaded(), "Inventory page should load within timeout"
+        assert login_time < timeout, f"Login should complete in less than {timeout} seconds"
